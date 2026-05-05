@@ -1,0 +1,198 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<!-- Header -->
+<div class="page-header">
+    <h4>
+        {% if session.role == 'admin' %}
+            <i class="fas fa-shield-alt me-2" style="color:#6366f1;"></i>
+            Admin Dashboard
+        {% else %}
+            <i class="fas fa-th-large me-2" style="color:#6366f1;"></i>
+            My Tickets
+        {% endif %}
+    </h4>
+
+    <p>
+        {% if session.role == 'admin' %}
+            All support tickets across the organization
+        {% else %}
+            Track the status of your IT support requests
+        {% endif %}
+    </p>
+</div>
+
+<!-- Stats -->
+<div class="row g-3 mb-4">
+
+    <div class="col-md-3">
+        <div class="stat-card c-total">
+            <div class="d-flex justify-content-between">
+                <div>
+                    <div class="stat-num">{{ stats.total }}</div>
+                    <div class="stat-label">Total Tickets</div>
+                </div>
+                <i class="fas fa-ticket-alt stat-icon"
+                   style="color:#6366f1;opacity:0.3;font-size:1.8rem;"></i>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="stat-card c-open">
+            <div class="d-flex justify-content-between">
+                <div>
+                    <div class="stat-num">{{ stats.open }}</div>
+                    <div class="stat-label">Open</div>
+                </div>
+                <i class="fas fa-circle-exclamation stat-icon"
+                   style="color:#f59e0b;opacity:0.3;font-size:1.8rem;"></i>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="stat-card c-progress">
+            <div class="d-flex justify-content-between">
+                <div>
+                    <div class="stat-num">{{ stats.in_progress }}</div>
+                    <div class="stat-label">In Progress</div>
+                </div>
+                <i class="fas fa-spinner stat-icon"
+                   style="color:#3b82f6;opacity:0.3;font-size:1.8rem;"></i>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="stat-card c-resolved">
+            <div class="d-flex justify-content-between">
+                <div>
+                    <div class="stat-num">{{ stats.resolved }}</div>
+                    <div class="stat-label">Resolved</div>
+                </div>
+                <i class="fas fa-check-circle stat-icon"
+                   style="color:#10b981;opacity:0.3;font-size:1.8rem;"></i>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- Tickets Table -->
+<div class="card">
+
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h6>
+            <i class="fas fa-list me-2" style="color:#6366f1;"></i>
+            {% if session.role == 'admin' %}All Tickets{% else %}My Tickets{% endif %}
+        </h6>
+
+        {% if session.role != 'admin' %}
+        <a href="{{ url_for('new_ticket') }}"
+           class="btn btn-primary btn-sm"
+           style="border-radius:8px;">
+            <i class="fas fa-plus me-1"></i> New Ticket
+        </a>
+        {% endif %}
+    </div>
+
+    <div class="card-body p-0">
+
+        {% if tickets %}
+        <table class="table mb-0">
+
+            <thead>
+                <tr>
+                    <th style="padding-left:20px;">#ID</th>
+                    <th>Title</th>
+                    <th>Category</th>
+                    <th>Priority</th>
+                    <th>Status</th>
+                    {% if session.role == 'admin' %}<th>Submitted By</th>{% endif %}
+                    <th>Created</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                {% for ticket in tickets %}
+                <tr>
+
+                    <td style="padding-left:20px;">
+                        <span class="ticket-id">#{{ '%04d' % ticket.id }}</span>
+                    </td>
+
+                    <td>
+                        <div style="font-weight:600;color:#1e293b;">
+                            {{ ticket.title }}
+                        </div>
+                    </td>
+
+                    <td>
+                        <span style="font-size:0.78rem;color:#64748b;">
+                            <i class="fas fa-tag me-1"></i>
+                            {{ ticket.category }}
+                        </span>
+                    </td>
+
+                    <td>
+                        <span class="p-{{ ticket.priority|lower }}">
+                            {{ ticket.priority }}
+                        </span>
+                    </td>
+
+                    <td>
+                        {% if ticket.status == 'Open' %}
+                            <span class="badge-status s-open">● Open</span>
+                        {% elif ticket.status == 'In Progress' %}
+                            <span class="badge-status s-inprogress">◐ In Progress</span>
+                        {% elif ticket.status == 'Resolved' %}
+                            <span class="badge-status s-resolved">✓ Resolved</span>
+                        {% else %}
+                            <span class="badge-status s-closed">✗ Closed</span>
+                        {% endif %}
+                    </td>
+
+                    {% if session.role == 'admin' %}
+                    <td>{{ ticket.creator_name }}</td>
+                    {% endif %}
+
+                    <td style="font-size:0.78rem;color:#94a3b8;">
+                        {{ ticket.created_at[:10] }}
+                    </td>
+
+                    <td>
+                        <a href="{{ url_for('view_ticket', ticket_id=ticket.id) }}"
+                           class="btn btn-outline-secondary btn-sm">
+                            View
+                        </a>
+                    </td>
+
+                </tr>
+                {% endfor %}
+            </tbody>
+
+        </table>
+
+        {% else %}
+        <!-- Empty State -->
+        <div style="text-align:center;padding:60px;color:#94a3b8;">
+            <i class="fas fa-inbox"
+               style="font-size:3rem;margin-bottom:16px;display:block;"></i>
+            <p style="font-weight:600;">No tickets yet</p>
+
+            {% if session.role != 'admin' %}
+            <a href="{{ url_for('new_ticket') }}"
+               class="btn btn-primary btn-sm">
+                Submit your first ticket
+            </a>
+            {% endif %}
+        </div>
+        {% endif %}
+
+    </div>
+</div>
+
+{% endblock %}
