@@ -1,0 +1,47 @@
+# ---------- Python ----------
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.db
+*.sqlite3
+
+# ---------- Virtual Environment ----------
+venv/
+env/
+ENV/
+
+# ---------- Environment Variables ----------
+.env
+
+# ---------- Flask ----------
+instance/
+.webassets-cache
+
+# ---------- Logs ----------
+*.log
+
+# ---------- OS Files ----------
+.DS_Store
+Thumbs.db
+
+# ---------- VS Code ----------
+.vscode/
+
+# ---------- Pytest ----------
+.pytest_cache/
+
+# ---------- Coverage ----------
+.coverage
+htmlcov/
+
+# ---------- Build ----------
+build/
+dist/
+*.egg-info/
+
+# ---------- Docker ----------
+*.pid
+
+# ---------- Database ----------
+data/helpdesk.db
