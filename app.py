@@ -10,8 +10,7 @@ app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'helpdesk-pro-secure-key-2026')
 
 # ---------- Database Setup ----------
-# On AWS, we use /tmp or the current app directory. 
-# For now, we'll keep it in 'data' but ensure the path is absolute for the Linux environment.
+# Using the local directory to mimic your localhost setup
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 DB_DIR = os.path.join(BASE_DIR, 'data')
 DB_PATH = os.path.join(DB_DIR, 'helpdesk.db')
@@ -48,7 +47,7 @@ def init_db():
         );
     ''')
 
-    # Seed default users
+    # Seed default users if they don't exist
     existing = conn.execute("SELECT id FROM users WHERE username='admin'").fetchone()
     if not existing:
         conn.execute(
@@ -106,6 +105,27 @@ def login():
         flash('Invalid username or password.', 'danger')
     return render_template('login.html')
 
+# RESTORED: The missing register route that caused the 500 error
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = generate_password_hash(request.form['password'])
+        full_name = request.form.get('full_name', 'User')
+        
+        conn = get_db()
+        try:
+            conn.execute('INSERT INTO users (username, password, full_name) VALUES (?, ?, ?)',
+                         (username, password, full_name))
+            conn.commit()
+            flash('Registration successful! Please login.', 'success')
+            return redirect(url_for('login'))
+        except sqlite3.IntegrityError:
+            flash('Username already exists.', 'danger')
+        finally:
+            conn.close()
+    return render_template('register.html')
+
 @app.route('/logout')
 def logout():
     session.clear()
@@ -149,7 +169,7 @@ def new_ticket():
         )
         conn.commit()
         conn.close()
-        flash('✅ Ticket submitted successfully!', 'success')
+        flash('Ticket submitted successfully!', 'success')
         return redirect(url_for('dashboard'))
     return render_template('new_ticket.html')
 
@@ -163,18 +183,30 @@ def view_ticket(ticket_id):
         return redirect(url_for('dashboard'))
     return render_template('view_ticket.html', ticket=ticket)
 
+# RESTORED: The missing update route that caused the view_ticket crash
+@app.route('/ticket/<int:ticket_id>/update', methods=['POST'])
+@login_required
+def update_ticket(ticket_id):
+    status = request.form.get('status')
+    priority = request.form.get('priority')
+    
+    conn = get_db()
+    conn.execute('UPDATE tickets SET status = ?, priority = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', 
+                 (status, priority, ticket_id))
+    conn.commit()
+    conn.close()
+    
+    flash(f'Ticket #{ticket_id} updated successfully!', 'success')
+    return redirect(url_for('view_ticket', ticket_id=ticket_id))
+
 @app.route('/health')
 def health():
     return {'status': 'healthy'}, 200
 
-# Add this above your 'if __name__ == "__main__":' block
-@app.route('/register')
-def register():
-    return "Registration is temporarily disabled."
 # ---------- App Init ----------
 init_db()
 
 if __name__ == '__main__':
-    # AWS Elastic Beanstalk typically uses port 8080 for web traffic
+    # Cloud Requirement: AWS Elastic Beanstalk expects traffic on Port 8080
     port = int(os.environ.get("PORT", 8080))
     app.run(host='0.0.0.0', port=port)
