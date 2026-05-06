@@ -4,7 +4,7 @@ services:
   web:
     build: .
     ports:
-      - "5000:5000"   # Host:Container
+      - "8080:8080"   # Host:Container
     volumes:
       - ./data:/app/data   # Persist SQLite database
     environment:
