@@ -167,6 +167,10 @@ def view_ticket(ticket_id):
 def health():
     return {'status': 'healthy'}, 200
 
+# Add this above your 'if __name__ == "__main__":' block
+@app.route('/register')
+def register():
+    return "Registration is temporarily disabled."
 # ---------- App Init ----------
 init_db()
 
