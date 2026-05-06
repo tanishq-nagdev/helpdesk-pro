@@ -131,7 +131,11 @@
         </div>
 
         <!-- Admin Controls -->
-        {% if session.role == 'admin' %}
+        {% if session.role in ['admin', 'support'] %}
+	<div class="card" style="border: 2px solid #f0f0ff;">
+    		<div class="card-header" style="background:#f5f3ff;">
+        		<h6 style="color:#6366f1;"><i class="fas fa-tools me-2"></i>Resolver Controls</h6>
+    		</div>
         <div class="card" style="border: 2px solid #f0f0ff;">
 
             <div class="card-header" style="background:#f5f3ff;">
@@ -140,6 +144,7 @@
                     Admin Controls
                 </h6>
             </div>
+            
 
             <div class="card-body" style="padding:20px;">
 

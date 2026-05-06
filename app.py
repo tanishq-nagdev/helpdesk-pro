@@ -53,6 +53,9 @@ def init_db():
             "INSERT INTO users (username, password, role, full_name) VALUES (?, ?, 'admin', 'IT Administrator')",
             ('admin', generate_password_hash('admin123'))
         )
+        
+        conn.execute("INSERT INTO users (username, password, role, full_name) VALUES (?, ?, 'support', 'IT Support Team')",
+                     ('tech', generate_password_hash('tech123')))
 
         conn.execute(
             "INSERT INTO users (username, password, role, full_name) VALUES (?, ?, 'employee', 'John Smith')",
@@ -112,6 +115,17 @@ def admin_required(f):
             flash('Admin access required.', 'danger')
             return redirect(url_for('dashboard'))
 
+        return f(*args, **kwargs)
+    return decorated
+    
+def support_or_admin_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if 'user_id' not in session:
+            return redirect(url_for('login'))
+        if session.get('role') not in ['admin', 'support']:
+            flash('IT Support access required.', 'danger')
+            return redirect(url_for('dashboard'))
         return f(*args, **kwargs)
     return decorated
 
@@ -188,7 +202,7 @@ def register():
 def dashboard():
     conn = get_db()
 
-    if session['role'] == 'admin':
+    if session['role'] in ['admin', 'support']:
         tickets = conn.execute('''
             SELECT t.*, u.full_name as creator_name
             FROM tickets t JOIN users u ON t.created_by = u.id
@@ -259,7 +273,7 @@ def view_ticket(ticket_id):
         flash('Ticket not found.', 'danger')
         return redirect(url_for('dashboard'))
 
-    if session['role'] != 'admin' and ticket['created_by'] != session['user_id']:
+    if session['role'] not in ['admin', 'support'] and ticket['created_by'] != session['user_id']:
         flash('Access denied.', 'danger')
         return redirect(url_for('dashboard'))
 
@@ -267,7 +281,7 @@ def view_ticket(ticket_id):
 
 
 @app.route('/ticket/<int:ticket_id>/update', methods=['POST'])
-@admin_required
+@support_or_admin_required
 def update_ticket(ticket_id):
     new_status = request.form['status']
 
@@ -297,3 +311,4 @@ init_db()
 
 if __name__ == '__main__':
     app.run(debug=False, host='0.0.0.0', port=5000)
+    conn.execute("INSERT INTO users (username, password, role, full_name) VALUES (?, ?, 'support', 'IT Support Team')", ('tech', generate_password_hash('tech123')))

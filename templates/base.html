@@ -62,6 +62,7 @@
             display: flex;
             align-items: center;
             gap: 10px;
+            text-decoration: none;
         }
 
         .sidebar .nav-link:hover,
@@ -114,6 +115,7 @@
             background: #fff;
             border-bottom: 1px solid #f1f5f9;
             padding: 16px 20px;
+            border-radius: 12px 12px 0 0;
         }
 
         /* Buttons */
@@ -124,6 +126,7 @@
 
         .btn-primary:hover {
             background: #4f46e5;
+            border-color: #4f46e5;
         }
     </style>
 </head>
@@ -148,7 +151,8 @@
             <i class="fas fa-th-large"></i> Dashboard
         </a>
 
-        {% if session.role != 'admin' %}
+        <!-- Hides New Ticket from both Admin and Support -->
+        {% if session.role not in ['admin', 'support'] %}
         <a href="{{ url_for('new_ticket') }}" class="nav-link">
             <i class="fas fa-plus-circle"></i> New Ticket
         </a>
@@ -168,6 +172,12 @@
                 {{ session.full_name }}
             </div>
             <div style="color:rgba(255,255,255,0.35); font-size:0.7rem;">
+                <!-- Added a small logic block to show a tool icon for support -->
+                {% if session.role == 'admin' %}
+                    <i class="fas fa-shield-alt me-1"></i>
+                {% elif session.role == 'support' %}
+                    <i class="fas fa-tools me-1"></i>
+                {% endif %}
                 {{ session.role|capitalize }}
             </div>
         </div>
@@ -179,11 +189,14 @@
 
     <!-- Flash messages -->
     {% with messages = get_flashed_messages(with_categories=true) %}
-        {% for category, message in messages %}
-        <div class="alert alert-{{ category }}">
-            {{ message }}
-        </div>
-        {% endfor %}
+        {% if messages %}
+            {% for category, message in messages %}
+            <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+            {% endfor %}
+        {% endif %}
     {% endwith %}
 
     {% block content %}{% endblock %}
