@@ -1,65 +1,83 @@
 from flask import Flask, render_template, request, redirect, url_for, session, flash
 from werkzeug.security import generate_password_hash, check_password_hash
-import sqlite3
-import os
 from functools import wraps
-from datetime import datetime
+import psycopg2
+import psycopg2.extras
+import os
 
 app = Flask(__name__)
-# Using a more secure way to fetch the secret key for production
+# Secret key for session management
 app.secret_key = os.environ.get('SECRET_KEY', 'helpdesk-pro-secure-key-2026')
 
-# ---------- Database Setup ----------
-# Using the local directory to mimic your localhost setup
-BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-DB_DIR = os.path.join(BASE_DIR, 'data')
-DB_PATH = os.path.join(DB_DIR, 'helpdesk.db')
+# ---------- Database Setup (AWS RDS PostgreSQL) ----------
+# These variables should be set in AWS Elastic Beanstalk Environment Properties
+DB_HOST = os.environ.get('DB_HOST', 'helpdesk-db.cvoymkeyimfo.eu-north-1.rds.amazonaws.com')
+DB_USER = os.environ.get('DB_USER', 'postgres')
+DB_PASS = os.environ.get('DB_PASS', 'hjhjhjhj')
+DB_NAME = os.environ.get('DB_NAME', 'helpdesk')
+DB_PORT = os.environ.get('DB_PORT', '5432')
 
 def get_db():
-    if not os.path.exists(DB_DIR):
-        os.makedirs(DB_DIR, exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
+    conn = psycopg2.connect(
+        host=DB_HOST,
+        user=DB_USER,
+        password=DB_PASS,
+        dbname=DB_NAME,
+        port=DB_PORT
+    )
+    # Allows accessing columns by name (like SQLite's row_factory)
+    conn.cursor_factory = psycopg2.extras.DictCursor
     return conn
 
 def init_db():
-    conn = get_db()
-    conn.executescript('''
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE NOT NULL,
-            password TEXT NOT NULL,
-            role TEXT NOT NULL DEFAULT 'employee',
-            full_name TEXT NOT NULL DEFAULT 'User'
-        );
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        
+        # Create Tables using PostgreSQL syntax (SERIAL for auto-increment)
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                id SERIAL PRIMARY KEY,
+                username VARCHAR(50) UNIQUE NOT NULL,
+                password TEXT NOT NULL,
+                role VARCHAR(20) NOT NULL DEFAULT 'employee',
+                full_name VARCHAR(100) NOT NULL DEFAULT 'User'
+            );
 
-        CREATE TABLE IF NOT EXISTS tickets (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT NOT NULL,
-            description TEXT NOT NULL,
-            category TEXT NOT NULL DEFAULT 'General',
-            status TEXT NOT NULL DEFAULT 'Open',
-            priority TEXT NOT NULL DEFAULT 'Medium',
-            created_by INTEGER NOT NULL,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (created_by) REFERENCES users(id)
-        );
-    ''')
+            CREATE TABLE IF NOT EXISTS tickets (
+                id SERIAL PRIMARY KEY,
+                title VARCHAR(200) NOT NULL,
+                description TEXT NOT NULL,
+                category VARCHAR(50) NOT NULL DEFAULT 'General',
+                status VARCHAR(20) NOT NULL DEFAULT 'Open',
+                priority VARCHAR(20) NOT NULL DEFAULT 'Medium',
+                created_by INTEGER NOT NULL REFERENCES users(id),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        ''')
 
-    # Seed default users if they don't exist
-    existing = conn.execute("SELECT id FROM users WHERE username='admin'").fetchone()
-    if not existing:
-        conn.execute(
-            "INSERT INTO users (username, password, role, full_name) VALUES (?, ?, 'admin', 'IT Administrator')",
-            ('admin', generate_password_hash('admin123'))
-        )
-        conn.execute("INSERT INTO users (username, password, role, full_name) VALUES (?, ?, 'support', 'IT Support Team')",
-                     ('tech', generate_password_hash('tech123')))
-        conn.execute("INSERT INTO users (username, password, role, full_name) VALUES (?, ?, 'employee', 'John Smith')",
-                     ('john', generate_password_hash('john123')))
-        conn.commit()
-    conn.close()
+        # Seed default users if they don't exist
+        cur.execute("SELECT id FROM users WHERE username='admin'")
+        if not cur.fetchone():
+            cur.execute(
+                "INSERT INTO users (username, password, role, full_name) VALUES (%s, %s, 'admin', 'IT Administrator')",
+                ('admin', generate_password_hash('admin123'))
+            )
+            cur.execute(
+                "INSERT INTO users (username, password, role, full_name) VALUES (%s, %s, 'support', 'IT Support Team')",
+                ('tech', generate_password_hash('tech123'))
+            )
+            cur.execute(
+                "INSERT INTO users (username, password, role, full_name) VALUES (%s, %s, 'employee', 'John Smith')",
+                ('john', generate_password_hash('john123'))
+            )
+            conn.commit()
+        
+        cur.close()
+        conn.close()
+    except Exception as e:
+        print(f"Database initialization error: {e}")
 
 # ---------- Auth Decorators ----------
 def login_required(f):
@@ -67,17 +85,6 @@ def login_required(f):
     def decorated(*args, **kwargs):
         if 'user_id' not in session:
             return redirect(url_for('login'))
-        return f(*args, **kwargs)
-    return decorated
-
-def support_or_admin_required(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        if 'user_id' not in session:
-            return redirect(url_for('login'))
-        if session.get('role') not in ['admin', 'support']:
-            flash('IT Support access required.', 'danger')
-            return redirect(url_for('dashboard'))
         return f(*args, **kwargs)
     return decorated
 
@@ -93,9 +100,14 @@ def login():
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
+        
         conn = get_db()
-        user = conn.execute('SELECT * FROM users WHERE username = ?', (username,)).fetchone()
+        cur = conn.cursor()
+        cur.execute('SELECT * FROM users WHERE username = %s', (username,))
+        user = cur.fetchone()
+        cur.close()
         conn.close()
+        
         if user and check_password_hash(user['password'], password):
             session['user_id'] = user['id']
             session['username'] = user['username']
@@ -105,7 +117,6 @@ def login():
         flash('Invalid username or password.', 'danger')
     return render_template('login.html')
 
-# RESTORED: The missing register route that caused the 500 error
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
@@ -114,15 +125,18 @@ def register():
         full_name = request.form.get('full_name', 'User')
         
         conn = get_db()
+        cur = conn.cursor()
         try:
-            conn.execute('INSERT INTO users (username, password, full_name) VALUES (?, ?, ?)',
+            cur.execute('INSERT INTO users (username, password, full_name) VALUES (%s, %s, %s)',
                          (username, password, full_name))
             conn.commit()
             flash('Registration successful! Please login.', 'success')
             return redirect(url_for('login'))
-        except sqlite3.IntegrityError:
+        except psycopg2.IntegrityError:
+            conn.rollback()
             flash('Username already exists.', 'danger')
         finally:
+            cur.close()
             conn.close()
     return render_template('register.html')
 
@@ -135,19 +149,25 @@ def logout():
 @login_required
 def dashboard():
     conn = get_db()
+    cur = conn.cursor()
+    
     if session['role'] in ['admin', 'support']:
-        tickets = conn.execute('''
+        cur.execute('''
             SELECT t.*, u.full_name as creator_name
             FROM tickets t JOIN users u ON t.created_by = u.id
             ORDER BY t.created_at DESC
-        ''').fetchall()
+        ''')
+        tickets = cur.fetchall()
     else:
-        tickets = conn.execute('''
+        cur.execute('''
             SELECT t.*, u.full_name as creator_name
             FROM tickets t JOIN users u ON t.created_by = u.id
-            WHERE t.created_by = ?
+            WHERE t.created_by = %s
             ORDER BY t.created_at DESC
-        ''', (session['user_id'],)).fetchall()
+        ''', (session['user_id'],))
+        tickets = cur.fetchall()
+        
+    cur.close()
     conn.close()
     
     stats = {
@@ -163,11 +183,13 @@ def dashboard():
 def new_ticket():
     if request.method == 'POST':
         conn = get_db()
-        conn.execute(
-            "INSERT INTO tickets (title, description, category, priority, created_by) VALUES (?, ?, ?, ?, ?)",
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO tickets (title, description, category, priority, created_by) VALUES (%s, %s, %s, %s, %s)",
             (request.form['title'], request.form['description'], request.form['category'], request.form['priority'], session['user_id'])
         )
         conn.commit()
+        cur.close()
         conn.close()
         flash('Ticket submitted successfully!', 'success')
         return redirect(url_for('dashboard'))
@@ -177,13 +199,20 @@ def new_ticket():
 @login_required
 def view_ticket(ticket_id):
     conn = get_db()
-    ticket = conn.execute('SELECT t.*, u.full_name as creator_name FROM tickets t JOIN users u ON t.created_by = u.id WHERE t.id = ?', (ticket_id,)).fetchone()
+    cur = conn.cursor()
+    cur.execute('''
+        SELECT t.*, u.full_name as creator_name 
+        FROM tickets t JOIN users u ON t.created_by = u.id 
+        WHERE t.id = %s
+    ''', (ticket_id,))
+    ticket = cur.fetchone()
+    cur.close()
     conn.close()
+    
     if not ticket:
         return redirect(url_for('dashboard'))
     return render_template('view_ticket.html', ticket=ticket)
 
-# RESTORED: The missing update route that caused the view_ticket crash
 @app.route('/ticket/<int:ticket_id>/update', methods=['POST'])
 @login_required
 def update_ticket(ticket_id):
@@ -191,9 +220,11 @@ def update_ticket(ticket_id):
     priority = request.form.get('priority')
     
     conn = get_db()
-    conn.execute('UPDATE tickets SET status = ?, priority = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', 
+    cur = conn.cursor()
+    cur.execute('UPDATE tickets SET status = %s, priority = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s', 
                  (status, priority, ticket_id))
     conn.commit()
+    cur.close()
     conn.close()
     
     flash(f'Ticket #{ticket_id} updated successfully!', 'success')
@@ -204,7 +235,11 @@ def health():
     return {'status': 'healthy'}, 200
 
 # ---------- App Init ----------
-init_db()
+# Wrap in try/except so it doesn't crash during pipeline build if DB is unreachable
+try:
+    init_db()
+except:
+    pass
 
 if __name__ == '__main__':
     # Cloud Requirement: AWS Elastic Beanstalk expects traffic on Port 8080
