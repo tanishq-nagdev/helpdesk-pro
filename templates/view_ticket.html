@@ -121,7 +121,7 @@
                             Last Updated
                         </td>
                         <td style="color:#334155;">
-                            {{ ticket.updated_at[:16] }}
+                           {{ ticket.updated_at.strftime('%Y-%m-%d %H:%M') if ticket.updated_at else 'N/A' }}
                         </td>
                     </tr>
 
