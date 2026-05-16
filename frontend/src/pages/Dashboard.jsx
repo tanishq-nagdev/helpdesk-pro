@@ -11,12 +11,19 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [alert, setAlert] = useState(null)
 
-  // State for Admin creating any user (Employee or Support)
+  // State for Admin creating any user
   const [newUser, setNewUser] = useState({ full_name: '', username: '', password: '', role: 'employee' })
   const [userLoading, setUserLoading] = useState(false)
   const [userAlert, setUserAlert] = useState(null)
 
-  useEffect(() => {
+  // State for Bulk Assignment
+  const [supportUsers, setSupportUsers] = useState([])
+  const [selectedTickets, setSelectedTickets] = useState([])
+  const [bulkAssignTo, setBulkAssignTo] = useState('')
+  const [bulkLoading, setBulkLoading] = useState(false)
+
+  const fetchDashboardData = () => {
+    setLoading(true)
     api.get('/tickets')
       .then(res => {
         setTickets(res.data.tickets)
@@ -24,13 +31,23 @@ export default function Dashboard() {
       })
       .catch(console.error)
       .finally(() => setLoading(false))
+  }
+
+  useEffect(() => {
+    fetchDashboardData()
+
+    if (user?.role === 'admin') {
+      api.get('/admin/support-users')
+        .then(res => setSupportUsers(res.data.users))
+        .catch(console.error)
+    }
 
     const msg = sessionStorage.getItem('flash')
     if (msg) {
       setAlert(msg)
       sessionStorage.removeItem('flash')
     }
-  }, [])
+  }, [user?.role])
 
   const handleCreateUser = async (e) => {
     e.preventDefault()
@@ -44,6 +61,42 @@ export default function Dashboard() {
       setUserAlert({ type: 'danger', msg: err.response?.data?.error || 'Failed to create user.' })
     } finally {
       setUserLoading(false)
+    }
+  }
+
+  // --- Bulk Selection Logic ---
+  const handleSelectAll = (e) => {
+    if (e.target.checked) {
+      setSelectedTickets(tickets.map(t => t.id))
+    } else {
+      setSelectedTickets([])
+    }
+  }
+
+  const handleSelectTicket = (ticketId) => {
+    if (selectedTickets.includes(ticketId)) {
+      setSelectedTickets(selectedTickets.filter(id => id !== ticketId))
+    } else {
+      setSelectedTickets([...selectedTickets, ticketId])
+    }
+  }
+
+  const handleBulkAssign = async () => {
+    if (!bulkAssignTo) return
+    setBulkLoading(true)
+    try {
+      await api.put('/tickets/bulk-assign', { 
+        ticket_ids: selectedTickets, 
+        assigned_to: bulkAssignTo === 'unassigned' ? '' : bulkAssignTo 
+      })
+      setAlert(`${selectedTickets.length} tickets successfully updated!`)
+      setSelectedTickets([])
+      setBulkAssignTo('')
+      fetchDashboardData() // Refresh the table
+    } catch (err) {
+      setAlert(err.response?.data?.error || 'Failed to assign tickets.')
+    } finally {
+      setBulkLoading(false)
     }
   }
 
@@ -186,6 +239,33 @@ export default function Dashboard() {
           )}
         </div>
 
+        {/* Bulk Action Bar (Only shows for Admin when tickets are selected) */}
+        {user?.role === 'admin' && selectedTickets.length > 0 && (
+          <div className="bg-light p-2 border-bottom d-flex align-items-center" style={{ gap: '10px' }}>
+            <span className="fw-bold text-primary" style={{ fontSize: '0.85rem', paddingLeft: '15px' }}>
+              {selectedTickets.length} ticket(s) selected
+            </span>
+            <select 
+              className="form-select form-select-sm w-auto" 
+              value={bulkAssignTo} 
+              onChange={e => setBulkAssignTo(e.target.value)}
+            >
+              <option value="">-- Assign To --</option>
+              <option value="unassigned">Unassigned</option>
+              {supportUsers.map(su => (
+                <option key={su.id} value={su.id}>{su.full_name} ({su.username})</option>
+              ))}
+            </select>
+            <button 
+              className="btn btn-primary btn-sm" 
+              disabled={!bulkAssignTo || bulkLoading}
+              onClick={handleBulkAssign}
+            >
+              {bulkLoading ? 'Applying...' : 'Apply Assignment'}
+            </button>
+          </div>
+        )}
+
         <div className="card-body p-0">
           {loading ? (
             <div style={{ textAlign: 'center', padding: 40 }}>
@@ -205,7 +285,17 @@ export default function Dashboard() {
             <table className="table mb-0">
               <thead>
                 <tr>
-                  <th style={{ paddingLeft: 20 }}>#ID</th>
+                  {user?.role === 'admin' && (
+                    <th style={{ width: '40px', paddingLeft: '20px' }}>
+                      <input 
+                        type="checkbox" 
+                        className="form-check-input"
+                        onChange={handleSelectAll}
+                        checked={selectedTickets.length === tickets.length && tickets.length > 0}
+                      />
+                    </th>
+                  )}
+                  <th style={{ paddingLeft: user?.role === 'admin' ? 0 : 20 }}>#ID</th>
                   <th>Title</th>
                   <th>Category</th>
                   <th>Priority</th>
@@ -218,8 +308,18 @@ export default function Dashboard() {
               </thead>
               <tbody>
                 {tickets.map(ticket => (
-                  <tr key={ticket.id}>
-                    <td style={{ paddingLeft: 20 }}>
+                  <tr key={ticket.id} className={selectedTickets.includes(ticket.id) ? 'table-active' : ''}>
+                    {user?.role === 'admin' && (
+                      <td style={{ paddingLeft: '20px' }}>
+                        <input 
+                          type="checkbox" 
+                          className="form-check-input"
+                          checked={selectedTickets.includes(ticket.id)}
+                          onChange={() => handleSelectTicket(ticket.id)}
+                        />
+                      </td>
+                    )}
+                    <td style={{ paddingLeft: user?.role === 'admin' ? 0 : 20 }}>
                       <span className="ticket-id">#{String(ticket.id).padStart(4, '0')}</span>
                     </td>
                     <td>
