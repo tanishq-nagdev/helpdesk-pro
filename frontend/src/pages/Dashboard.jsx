@@ -11,12 +11,12 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [alert, setAlert] = useState(null)
 
-  // State for Admin creating any user
+  // Admin creating user state
   const [newUser, setNewUser] = useState({ full_name: '', username: '', password: '', role: 'employee' })
   const [userLoading, setUserLoading] = useState(false)
   const [userAlert, setUserAlert] = useState(null)
 
-  // State for Bulk Assignment
+  // Assignment states
   const [supportUsers, setSupportUsers] = useState([])
   const [selectedTickets, setSelectedTickets] = useState([])
   const [bulkAssignTo, setBulkAssignTo] = useState('')
@@ -64,7 +64,7 @@ export default function Dashboard() {
     }
   }
 
-  // --- Bulk Selection Logic ---
+  // --- Ticket Selection & Assignment Methods ---
   const handleSelectAll = (e) => {
     if (e.target.checked) {
       setSelectedTickets(tickets.map(t => t.id))
@@ -89,14 +89,27 @@ export default function Dashboard() {
         ticket_ids: selectedTickets, 
         assigned_to: bulkAssignTo === 'unassigned' ? '' : bulkAssignTo 
       })
-      setAlert(`${selectedTickets.length} tickets successfully updated!`)
+      setAlert(`${selectedTickets.length} tickets successfully assigned!`)
       setSelectedTickets([])
       setBulkAssignTo('')
-      fetchDashboardData() // Refresh the table
+      fetchDashboardData()
     } catch (err) {
       setAlert(err.response?.data?.error || 'Failed to assign tickets.')
     } finally {
       setBulkLoading(false)
+    }
+  }
+
+  const handleSingleAssign = async (ticketId, supportId) => {
+    try {
+      await api.put('/tickets/bulk-assign', {
+        ticket_ids: [ticketId],
+        assigned_to: supportId === 'unassigned' ? '' : supportId
+      })
+      setAlert(`Ticket #${String(ticketId).padStart(4, '0')} assigned successfully!`)
+      fetchDashboardData()
+    } catch (err) {
+      setAlert(err.response?.data?.error || 'Failed to assign ticket.')
     }
   }
 
@@ -239,18 +252,20 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* Bulk Action Bar (Only shows for Admin when tickets are selected) */}
-        {user?.role === 'admin' && selectedTickets.length > 0 && (
+        {/* Bulk Action Bar - ALWAYS VISIBLE FOR ADMINS */}
+        {user?.role === 'admin' && (
           <div className="bg-light p-2 border-bottom d-flex align-items-center" style={{ gap: '10px' }}>
-            <span className="fw-bold text-primary" style={{ fontSize: '0.85rem', paddingLeft: '15px' }}>
-              {selectedTickets.length} ticket(s) selected
+            <span className="fw-bold text-primary" style={{ fontSize: '0.85rem', paddingLeft: '15px', minWidth: '130px' }}>
+              <i className="fas fa-check-square me-2"></i>
+              {selectedTickets.length} selected
             </span>
             <select 
               className="form-select form-select-sm w-auto" 
               value={bulkAssignTo} 
               onChange={e => setBulkAssignTo(e.target.value)}
+              disabled={selectedTickets.length === 0}
             >
-              <option value="">-- Assign To --</option>
+              <option value="">-- Bulk Assign To --</option>
               <option value="unassigned">Unassigned</option>
               {supportUsers.map(su => (
                 <option key={su.id} value={su.id}>{su.full_name} ({su.username})</option>
@@ -258,7 +273,7 @@ export default function Dashboard() {
             </select>
             <button 
               className="btn btn-primary btn-sm" 
-              disabled={!bulkAssignTo || bulkLoading}
+              disabled={selectedTickets.length === 0 || !bulkAssignTo || bulkLoading}
               onClick={handleBulkAssign}
             >
               {bulkLoading ? 'Applying...' : 'Apply Assignment'}
@@ -282,7 +297,7 @@ export default function Dashboard() {
               )}
             </div>
           ) : (
-            <table className="table mb-0">
+            <table className="table mb-0 align-middle">
               <thead>
                 <tr>
                   {user?.role === 'admin' && (
@@ -298,10 +313,11 @@ export default function Dashboard() {
                   <th style={{ paddingLeft: user?.role === 'admin' ? 0 : 20 }}>#ID</th>
                   <th>Title</th>
                   <th>Category</th>
-                  <th>Priority</th>
                   <th>Status</th>
                   {['admin', 'support'].includes(user?.role) && <th>Submitted By</th>}
-                  {user?.role === 'admin' && <th>Assigned To</th>}
+                  
+                  {user?.role === 'admin' ? <th>Assign To</th> : user?.role === 'support' ? <th>Assigned To</th> : null}
+                  
                   <th>Created</th>
                   <th>Action</th>
                 </tr>
@@ -309,6 +325,7 @@ export default function Dashboard() {
               <tbody>
                 {tickets.map(ticket => (
                   <tr key={ticket.id} className={selectedTickets.includes(ticket.id) ? 'table-active' : ''}>
+                    
                     {user?.role === 'admin' && (
                       <td style={{ paddingLeft: '20px' }}>
                         <input 
@@ -319,6 +336,7 @@ export default function Dashboard() {
                         />
                       </td>
                     )}
+                    
                     <td style={{ paddingLeft: user?.role === 'admin' ? 0 : 20 }}>
                       <span className="ticket-id">#{String(ticket.id).padStart(4, '0')}</span>
                     </td>
@@ -330,20 +348,38 @@ export default function Dashboard() {
                         <i className="fas fa-tag me-1"></i>{ticket.category}
                       </span>
                     </td>
-                    <td>
-                      <span className={`p-${ticket.priority?.toLowerCase()}`}>{ticket.priority}</span>
-                    </td>
                     <td>{statusBadge(ticket.status)}</td>
+                    
                     {['admin', 'support'].includes(user?.role) && (
                       <td>{ticket.creator_name}</td>
                     )}
+                    
+                    {/* Single Assign Dropdown directly in the row for Admin! */}
                     {user?.role === 'admin' && (
+                      <td>
+                        <select 
+                          className="form-select form-select-sm" 
+                          style={{ fontSize: '0.8rem', minWidth: '120px' }}
+                          value={ticket.assigned_to || 'unassigned'}
+                          onChange={(e) => handleSingleAssign(ticket.id, e.target.value)}
+                        >
+                          <option value="unassigned" className="text-muted">Unassigned</option>
+                          {supportUsers.map(su => (
+                            <option key={su.id} value={su.id}>{su.username}</option>
+                          ))}
+                        </select>
+                      </td>
+                    )}
+
+                    {/* Support still just sees the text */}
+                    {user?.role === 'support' && (
                       <td>
                         {ticket.assigned_name 
                           ? <span className="badge bg-light text-dark border"><i className="fas fa-user-check me-1 text-success"></i>{ticket.assigned_name}</span> 
                           : <span className="text-muted" style={{ fontSize: '0.8rem' }}>Unassigned</span>}
                       </td>
                     )}
+
                     <td style={{ fontSize: '0.78rem', color: '#94a3b8' }}>
                       {ticket.created_at ? ticket.created_at.split(' ')[0] : 'N/A'}
                     </td>
