@@ -10,6 +10,9 @@ export default function Dashboard() {
   const [stats, setStats] = useState({ total: 0, open: 0, in_progress: 0, resolved: 0 })
   const [loading, setLoading] = useState(true)
   const [alert, setAlert] = useState(null)
+  
+  // Debug Alert for backend connection issues
+  const [backendError, setBackendError] = useState(null)
 
   // Admin creating user state
   const [newUser, setNewUser] = useState({ full_name: '', username: '', password: '', role: 'employee' })
@@ -39,7 +42,10 @@ export default function Dashboard() {
     if (user?.role === 'admin') {
       api.get('/admin/support-users')
         .then(res => setSupportUsers(res.data.users))
-        .catch(console.error)
+        .catch(err => {
+          console.error("Backend Error:", err);
+          setBackendError("CRITICAL ERROR: Failed to connect to backend to fetch Support Users. Your backend container did not update properly.");
+        })
     }
 
     const msg = sessionStorage.getItem('flash')
@@ -134,6 +140,14 @@ export default function Dashboard() {
           {user?.role === 'employee' && 'Track the status of your personal IT support requests.'}
         </p>
       </div>
+
+      {/* Critical Backend Error Banner */}
+      {backendError && (
+        <div className="alert alert-danger" role="alert" style={{ fontWeight: 'bold' }}>
+          <i className="fas fa-exclamation-triangle me-2"></i>
+          {backendError}
+        </div>
+      )}
 
       {alert && (
         <div className="alert alert-success alert-dismissible fade show" role="alert">
