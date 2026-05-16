@@ -5,7 +5,6 @@ import PrivateRoute from './components/PrivateRoute'
 import Layout from './components/Layout'
 
 import Login from './pages/Login'
-import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
 import NewTicket from './pages/NewTicket'
 import ViewTicket from './pages/ViewTicket'
@@ -17,8 +16,7 @@ export default function App() {
         <Routes>
           {/* Public routes */}
           <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-
+          
           {/* Protected routes wrapped in sidebar Layout */}
           <Route path="/dashboard" element={
             <PrivateRoute>
