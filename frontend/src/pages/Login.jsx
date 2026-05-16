@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../components/AuthContext'
 
 export default function Login() {
@@ -107,21 +107,14 @@ export default function Login() {
             </button>
           </form>
 
+          {/* Contact Admin Message instead of Registration Link */}
           <hr style={{ margin: '20px 0', borderColor: '#f1f5f9' }} />
           <p style={{ textAlign: 'center', fontSize: '0.825rem', color: '#64748b', margin: 0 }}>
-            New employee?{' '}
-            <Link to="/register" style={{ color: '#6366f1', fontWeight: 600, textDecoration: 'none' }}>
-              Create Account
-            </Link>
+            <i className="fas fa-info-circle me-1" style={{ color: '#6366f1' }}></i>
+            Need an account? Please contact your IT Administrator.
           </p>
         </div>
 
-        {/* Demo creds */}
-        <div style={{ textAlign: 'center', marginTop: 20 }}>
-          <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: '0.75rem' }}>
-            Demo: admin/admin123 | john/john123
-          </p>
-        </div>
       </div>
     </div>
   )

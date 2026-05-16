@@ -11,6 +11,11 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [alert, setAlert] = useState(null)
 
+  // State for Admin creating any user (Employee or Support)
+  const [newUser, setNewUser] = useState({ full_name: '', username: '', password: '', role: 'employee' })
+  const [userLoading, setUserLoading] = useState(false)
+  const [userAlert, setUserAlert] = useState(null)
+
   useEffect(() => {
     api.get('/tickets')
       .then(res => {
@@ -20,13 +25,27 @@ export default function Dashboard() {
       .catch(console.error)
       .finally(() => setLoading(false))
 
-    // Pick up flash message from navigation state (e.g. after creating/updating a ticket)
     const msg = sessionStorage.getItem('flash')
     if (msg) {
       setAlert(msg)
       sessionStorage.removeItem('flash')
     }
   }, [])
+
+  const handleCreateUser = async (e) => {
+    e.preventDefault()
+    setUserLoading(true)
+    setUserAlert(null)
+    try {
+      const res = await api.post('/admin/users', newUser)
+      setUserAlert({ type: 'success', msg: res.data.message })
+      setNewUser({ full_name: '', username: '', password: '', role: 'employee' })
+    } catch (err) {
+      setUserAlert({ type: 'danger', msg: err.response?.data?.error || 'Failed to create user.' })
+    } finally {
+      setUserLoading(false)
+    }
+  }
 
   const statusBadge = (status) => {
     if (status === 'Open')        return <span className="badge-status s-open">● Open</span>
@@ -37,7 +56,6 @@ export default function Dashboard() {
 
   return (
     <>
-      {/* Page Header */}
       <div className="page-header">
         <h4>
           {user?.role === 'admin'   && <><i className="fas fa-shield-alt me-2" style={{ color: '#6366f1' }}></i>Admin Dashboard</>}
@@ -51,11 +69,55 @@ export default function Dashboard() {
         </p>
       </div>
 
-      {/* Flash alert */}
       {alert && (
         <div className="alert alert-success alert-dismissible fade show" role="alert">
           {alert}
           <button type="button" className="btn-close" onClick={() => setAlert(null)}></button>
+        </div>
+      )}
+
+      {/* Admin Panel: Create Users */}
+      {user?.role === 'admin' && (
+        <div className="card mb-4" style={{ border: '1px solid #e2e8f0' }}>
+          <div className="card-header bg-white" style={{ borderBottom: '1px solid #e2e8f0' }}>
+            <h6 style={{ margin: 0, color: '#334155' }}>
+              <i className="fas fa-user-plus me-2" style={{ color: '#10b981' }}></i>
+              Create New Staff Account
+            </h6>
+          </div>
+          <div className="card-body">
+            {userAlert && (
+              <div className={`alert alert-${userAlert.type} py-2 mb-3`} style={{ fontSize: '0.85rem' }}>
+                {userAlert.msg}
+              </div>
+            )}
+            <form onSubmit={handleCreateUser} className="row g-2 align-items-center">
+              <div className="col-md-3">
+                <input type="text" className="form-control form-control-sm" placeholder="Full Name" required
+                  value={newUser.full_name} onChange={e => setNewUser({ ...newUser, full_name: e.target.value })} />
+              </div>
+              <div className="col-md-2">
+                <input type="text" className="form-control form-control-sm" placeholder="Username" required
+                  value={newUser.username} onChange={e => setNewUser({ ...newUser, username: e.target.value })} />
+              </div>
+              <div className="col-md-2">
+                <input type="password" className="form-control form-control-sm" placeholder="Password" required
+                  value={newUser.password} onChange={e => setNewUser({ ...newUser, password: e.target.value })} />
+              </div>
+              <div className="col-md-2">
+                <select className="form-select form-select-sm" 
+                  value={newUser.role} onChange={e => setNewUser({ ...newUser, role: e.target.value })}>
+                  <option value="employee">Employee</option>
+                  <option value="support">IT Support</option>
+                </select>
+              </div>
+              <div className="col-md-3">
+                <button type="submit" className="btn btn-success btn-sm w-100" disabled={userLoading}>
+                  {userLoading ? 'Creating...' : 'Create Account'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 
@@ -113,7 +175,7 @@ export default function Dashboard() {
           <h6 style={{ margin: 0 }}>
             <i className="fas fa-list me-2" style={{ color: '#6366f1' }}></i>
             {user?.role === 'admin'    && 'Global Ticket Queue'}
-            {user?.role === 'support'  && 'Active Support Queue'}
+            {user?.role === 'support'  && 'My Assigned Tasks'}
             {user?.role === 'employee' && 'My Ticket History'}
           </h6>
           {user?.role === 'employee' && (
@@ -149,6 +211,7 @@ export default function Dashboard() {
                   <th>Priority</th>
                   <th>Status</th>
                   {['admin', 'support'].includes(user?.role) && <th>Submitted By</th>}
+                  {user?.role === 'admin' && <th>Assigned To</th>}
                   <th>Created</th>
                   <th>Action</th>
                 </tr>
@@ -173,6 +236,13 @@ export default function Dashboard() {
                     <td>{statusBadge(ticket.status)}</td>
                     {['admin', 'support'].includes(user?.role) && (
                       <td>{ticket.creator_name}</td>
+                    )}
+                    {user?.role === 'admin' && (
+                      <td>
+                        {ticket.assigned_name 
+                          ? <span className="badge bg-light text-dark border"><i className="fas fa-user-check me-1 text-success"></i>{ticket.assigned_name}</span> 
+                          : <span className="text-muted" style={{ fontSize: '0.8rem' }}>Unassigned</span>}
+                      </td>
                     )}
                     <td style={{ fontSize: '0.78rem', color: '#94a3b8' }}>
                       {ticket.created_at ? ticket.created_at.split(' ')[0] : 'N/A'}
