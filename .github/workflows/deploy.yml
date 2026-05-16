@@ -1,28 +1,57 @@
-name: Deploy to AWS Elastic Beanstalk
+name: CI/CD — Build & Deploy to ECS Fargate
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
+
+env:
+  AWS_REGION: eu-north-1
+  ECR_BACKEND_REPO: helpdesk-backend
+  ECR_FRONTEND_REPO: helpdesk-frontend
+  ECS_CLUSTER: helpdesk-cluster
+  ECS_BACKEND_SERVICE: helpdesk-backend-service
+  ECS_FRONTEND_SERVICE: helpdesk-frontend-service
 
 jobs:
   deploy:
+    name: Build Docker Images and Deploy
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout Source Code
-      uses: actions/checkout@v4
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-    - name: Generate Deployment Package
-      run: zip -r deploy.zip . -x '*.git*'
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
 
-    - name: Deploy to Elastic Beanstalk
-      uses: einaregilsson/beanstalk-deploy@v22
-      with:
-        aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        application_name: helpdesk-pro
-        environment_name: helpdesk-pro-env
-        version_label: "ver-${{ github.sha }}"
-        region: eu-north-1
-        deployment_package: deploy.zip
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag, and push Backend Image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          cd backend
+          docker build -t $ECR_REGISTRY/${{ env.ECR_BACKEND_REPO }}:latest .
+          docker push $ECR_REGISTRY/${{ env.ECR_BACKEND_REPO }}:latest
+
+      - name: Build, tag, and push Frontend Image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          cd frontend
+          docker build -t $ECR_REGISTRY/${{ env.ECR_FRONTEND_REPO }}:latest .
+          docker push $ECR_REGISTRY/${{ env.ECR_FRONTEND_REPO }}:latest
+
+      - name: Force ECS Backend Deployment
+        run: |
+          aws ecs update-service --cluster ${{ env.ECS_CLUSTER }} --service ${{ env.ECS_BACKEND_SERVICE }} --force-new-deployment --region ${{ env.AWS_REGION }}
+
+      - name: Force ECS Frontend Deployment
+        run: |
+          aws ecs update-service --cluster ${{ env.ECS_CLUSTER }} --service ${{ env.ECS_FRONTEND_SERVICE }} --force-new-deployment --region ${{ env.AWS_REGION }}

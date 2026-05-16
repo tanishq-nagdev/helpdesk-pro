@@ -1,0 +1,192 @@
+body {
+  background: #f1f5f9;
+  font-family: 'Segoe UI', sans-serif;
+  margin: 0;
+}
+
+/* ── Sidebar ── */
+.sidebar {
+  width: 255px;
+  min-height: 100vh;
+  background: #0f172a;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-brand {
+  padding: 22px 24px 18px;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+}
+
+.brand-name {
+  color: #fff;
+  font-weight: 700;
+  font-size: 1.1rem;
+  margin: 0;
+}
+
+.brand-name span { color: #6366f1; }
+
+.sidebar-brand small {
+  color: rgba(255,255,255,0.35);
+  font-size: 0.68rem;
+}
+
+.sidebar .nav-link {
+  color: rgba(255,255,255,0.55);
+  padding: 9px 20px;
+  border-radius: 8px;
+  margin: 2px 12px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  cursor: pointer;
+  border: none;
+  background: none;
+  width: calc(100% - 24px);
+}
+
+.sidebar .nav-link:hover,
+.sidebar .nav-link.active {
+  color: #fff;
+  background: rgba(99,102,241,0.25);
+}
+
+.sidebar-section-label {
+  color: rgba(255,255,255,0.25);
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  padding: 14px 24px 4px;
+}
+
+.sidebar-user {
+  margin-top: auto;
+  padding: 16px 20px;
+  border-top: 1px solid rgba(255,255,255,0.07);
+}
+
+.user-avatar {
+  width: 34px;
+  height: 34px;
+  background: #6366f1;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.8rem;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+/* ── Main ── */
+.main-content {
+  margin-left: 255px;
+  padding: 28px;
+  min-height: 100vh;
+}
+
+/* ── Cards ── */
+.card {
+  border: none !important;
+  border-radius: 12px !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.07) !important;
+}
+
+.card-header {
+  background: #fff !important;
+  border-bottom: 1px solid #f1f5f9 !important;
+  padding: 16px 20px !important;
+  border-radius: 12px 12px 0 0 !important;
+}
+
+/* ── Buttons ── */
+.btn-primary {
+  background: #6366f1 !important;
+  border-color: #6366f1 !important;
+}
+
+.btn-primary:hover {
+  background: #4f46e5 !important;
+  border-color: #4f46e5 !important;
+}
+
+/* ── Status badges ── */
+.badge-status {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 20px;
+  display: inline-block;
+}
+
+.s-open       { background: #fef3c7; color: #92400e; }
+.s-inprogress { background: #dbeafe; color: #1e40af; }
+.s-resolved   { background: #d1fae5; color: #065f46; }
+.s-closed     { background: #f1f5f9; color: #475569; }
+
+/* ── Priority pills ── */
+.p-high   { color: #dc2626; font-weight: 600; font-size: 0.8rem; }
+.p-medium { color: #d97706; font-weight: 600; font-size: 0.8rem; }
+.p-low    { color: #16a34a; font-weight: 600; font-size: 0.8rem; }
+
+/* ── Ticket ID ── */
+.ticket-id {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+/* ── Stat cards ── */
+.stat-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.07);
+}
+
+.stat-num {
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1;
+}
+
+.stat-label {
+  font-size: 0.78rem;
+  color: #64748b;
+  margin-top: 4px;
+}
+
+/* ── Page header ── */
+.page-header { margin-bottom: 24px; }
+.page-header h4 { font-weight: 700; color: #0f172a; margin-bottom: 4px; }
+.page-header p  { color: #64748b; font-size: 0.875rem; margin: 0; }
+
+/* ── Table ── */
+.table thead th {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  color: #94a3b8;
+  font-weight: 600;
+  border-bottom: 1px solid #f1f5f9;
+  background: #fafafa;
+  padding: 10px 12px;
+}
+
+.table tbody td {
+  padding: 12px 12px;
+  vertical-align: middle;
+  border-bottom: 1px solid #f8fafc;
+  font-size: 0.875rem;
+}
+
+.table tbody tr:last-child td { border-bottom: none; }
+.table tbody tr:hover { background: #f8fafc; }
