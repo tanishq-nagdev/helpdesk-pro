@@ -10,7 +10,6 @@ app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'helpdesk-pro-secure-key-2026')
 
 # ---------- CORS ----------
-# Allow requests from the frontend container/domain
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:3000')
 CORS(app, supports_credentials=True, origins=[FRONTEND_URL])
 
@@ -36,6 +35,7 @@ def init_db():
     try:
         conn = get_db()
         cur = conn.cursor()
+        
         cur.execute('''
             CREATE TABLE IF NOT EXISTS users (
                 id SERIAL PRIMARY KEY,
@@ -57,6 +57,13 @@ def init_db():
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         ''')
+        conn.commit()
+        
+        try:
+            cur.execute('ALTER TABLE tickets ADD COLUMN IF NOT EXISTS assigned_to INTEGER REFERENCES users(id);')
+            conn.commit()
+        except Exception:
+            conn.rollback()
 
         cur.execute("SELECT id FROM users WHERE username='admin'")
         if not cur.fetchone():
@@ -118,29 +125,6 @@ def login():
 
     return jsonify({'error': 'Invalid username or password'}), 401
 
-@app.route('/api/register', methods=['POST'])
-def register():
-    data = request.get_json()
-    username = data.get('username', '')
-    password = generate_password_hash(data.get('password', ''))
-    full_name = data.get('full_name', 'User')
-
-    conn = get_db()
-    cur = conn.cursor()
-    try:
-        cur.execute(
-            'INSERT INTO users (username, password, full_name) VALUES (%s, %s, %s)',
-            (username, password, full_name)
-        )
-        conn.commit()
-        return jsonify({'message': 'Registration successful'}), 201
-    except psycopg2.IntegrityError:
-        conn.rollback()
-        return jsonify({'error': 'Username already exists'}), 409
-    finally:
-        cur.close()
-        conn.close()
-
 @app.route('/api/logout', methods=['POST'])
 def logout():
     session.clear()
@@ -158,23 +142,111 @@ def me():
         }
     }), 200
 
+# ---------- Admin Control Routes ----------
+@app.route('/api/admin/users', methods=['POST'])
+@login_required
+def create_user():
+    if session['role'] != 'admin':
+        return jsonify({'error': 'Forbidden'}), 403
+        
+    data = request.get_json()
+    username = data.get('username', '')
+    password = generate_password_hash(data.get('password', ''))
+    full_name = data.get('full_name', 'User')
+    role = data.get('role', 'employee')
+
+    if role not in ['employee', 'support']:
+        return jsonify({'error': 'Invalid role specified'}), 400
+
+    conn = get_db()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            "INSERT INTO users (username, password, role, full_name) VALUES (%s, %s, %s, %s)",
+            (username, password, role, full_name)
+        )
+        conn.commit()
+        return jsonify({'message': f'{role.capitalize()} account created successfully'}), 201
+    except psycopg2.IntegrityError:
+        conn.rollback()
+        return jsonify({'error': 'Username already exists'}), 409
+    finally:
+        cur.close()
+        conn.close()
+
+@app.route('/api/admin/support-users', methods=['GET'])
+@login_required
+def get_support_users():
+    if session['role'] != 'admin':
+        return jsonify({'error': 'Forbidden'}), 403
+        
+    conn = get_db()
+    cur = conn.cursor()
+    # Bulletproof query: ignores accidental spaces and uppercase letters in your DB
+    cur.execute("SELECT id, full_name, username FROM users WHERE TRIM(LOWER(role)) = 'support'")
+    users = cur.fetchall()
+    cur.close()
+    conn.close()
+    return jsonify({'users': [dict(u) for u in users]}), 200
+
 # ---------- Ticket Routes ----------
+@app.route('/api/tickets/bulk-assign', methods=['PUT'])
+@login_required
+def bulk_assign_tickets():
+    if session['role'] != 'admin':
+        return jsonify({'error': 'Forbidden'}), 403
+
+    data = request.get_json()
+    ticket_ids = data.get('ticket_ids', [])
+    assigned_to = data.get('assigned_to')
+
+    if not ticket_ids:
+        return jsonify({'error': 'No tickets selected'}), 400
+
+    assigned_id = int(assigned_to) if assigned_to else None
+
+    conn = get_db()
+    cur = conn.cursor()
+    
+    format_strings = ','.join(['%s'] * len(ticket_ids))
+    query = f"UPDATE tickets SET assigned_to = %s, updated_at = CURRENT_TIMESTAMP WHERE id IN ({format_strings})"
+    
+    cur.execute(query, [assigned_id] + ticket_ids)
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return jsonify({'message': f'{len(ticket_ids)} tickets assigned successfully'}), 200
+
 @app.route('/api/tickets', methods=['GET'])
 @login_required
 def get_tickets():
     conn = get_db()
     cur = conn.cursor()
 
-    if session['role'] in ['admin', 'support']:
+    if session['role'] == 'admin':
         cur.execute('''
-            SELECT t.*, u.full_name as creator_name
-            FROM tickets t JOIN users u ON t.created_by = u.id
+            SELECT t.*, u.full_name as creator_name, a.full_name as assigned_name
+            FROM tickets t 
+            JOIN users u ON t.created_by = u.id
+            LEFT JOIN users a ON t.assigned_to = a.id
             ORDER BY t.created_at DESC
         ''')
+    elif session['role'] == 'support':
+        cur.execute('''
+            SELECT t.*, u.full_name as creator_name, a.full_name as assigned_name
+            FROM tickets t 
+            JOIN users u ON t.created_by = u.id
+            LEFT JOIN users a ON t.assigned_to = a.id
+            WHERE t.assigned_to = %s
+            ORDER BY t.created_at DESC
+        ''', (session['user_id'],))
     else:
         cur.execute('''
-            SELECT t.*, u.full_name as creator_name
-            FROM tickets t JOIN users u ON t.created_by = u.id
+            SELECT t.*, u.full_name as creator_name, a.full_name as assigned_name
+            FROM tickets t 
+            JOIN users u ON t.created_by = u.id
+            LEFT JOIN users a ON t.assigned_to = a.id
             WHERE t.created_by = %s
             ORDER BY t.created_at DESC
         ''', (session['user_id'],))
@@ -183,7 +255,6 @@ def get_tickets():
     cur.close()
     conn.close()
 
-    # Convert datetime objects to strings for JSON serialisation
     ticket_list = []
     for t in tickets:
         row = dict(t)
@@ -223,8 +294,10 @@ def get_ticket(ticket_id):
     conn = get_db()
     cur = conn.cursor()
     cur.execute('''
-        SELECT t.*, u.full_name as creator_name
-        FROM tickets t JOIN users u ON t.created_by = u.id
+        SELECT t.*, u.full_name as creator_name, a.full_name as assigned_name
+        FROM tickets t 
+        JOIN users u ON t.created_by = u.id
+        LEFT JOIN users a ON t.assigned_to = a.id
         WHERE t.id = %s
     ''', (ticket_id,))
     ticket = cur.fetchone()
@@ -249,13 +322,24 @@ def update_ticket(ticket_id):
     data = request.get_json()
     status = data.get('status')
     priority = data.get('priority')
-
+    
     conn = get_db()
     cur = conn.cursor()
-    cur.execute(
-        'UPDATE tickets SET status = %s, priority = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s',
-        (status, priority, ticket_id)
-    )
+
+    if session['role'] == 'admin':
+        assigned_to = data.get('assigned_to')
+        assigned_id = int(assigned_to) if assigned_to else None
+        
+        cur.execute(
+            'UPDATE tickets SET status = %s, priority = %s, assigned_to = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s',
+            (status, priority, assigned_id, ticket_id)
+        )
+    else:
+        cur.execute(
+            'UPDATE tickets SET status = %s, priority = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s',
+            (status, priority, ticket_id)
+        )
+
     conn.commit()
     cur.close()
     conn.close()
