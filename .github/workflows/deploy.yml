@@ -9,7 +9,7 @@ env:
   ECR_BACKEND_REPO: helpdesk-backend
   ECR_FRONTEND_REPO: helpdesk-frontend
   ECS_CLUSTER: helpdesk-cluster
-  ECS_BACKEND_SERVICE: helpdesk-backend-service
+  ECS_BACKEND_SERVICE: helpdesk-backend-task-service
   ECS_FRONTEND_SERVICE: helpdesk-frontend-service
 
 jobs:
