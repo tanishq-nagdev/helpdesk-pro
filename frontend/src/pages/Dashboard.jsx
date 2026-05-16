@@ -327,6 +327,10 @@ export default function Dashboard() {
                   <th style={{ paddingLeft: user?.role === 'admin' ? 0 : 20 }}>#ID</th>
                   <th>Title</th>
                   <th>Category</th>
+                  
+                  {/* PRIORITY COLUMN RESTORED */}
+                  <th>Priority</th>
+                  
                   <th>Status</th>
                   {['admin', 'support'].includes(user?.role) && <th>Submitted By</th>}
                   
@@ -362,13 +366,18 @@ export default function Dashboard() {
                         <i className="fas fa-tag me-1"></i>{ticket.category}
                       </span>
                     </td>
+
+                    {/* PRIORITY DATA RESTORED */}
+                    <td>
+                      <span className={`p-${ticket.priority?.toLowerCase()}`}>{ticket.priority}</span>
+                    </td>
+
                     <td>{statusBadge(ticket.status)}</td>
                     
                     {['admin', 'support'].includes(user?.role) && (
                       <td>{ticket.creator_name}</td>
                     )}
                     
-                    {/* Single Assign Dropdown directly in the row for Admin! */}
                     {user?.role === 'admin' && (
                       <td>
                         <select 
@@ -385,7 +394,6 @@ export default function Dashboard() {
                       </td>
                     )}
 
-                    {/* Support still just sees the text */}
                     {user?.role === 'support' && (
                       <td>
                         {ticket.assigned_name 
